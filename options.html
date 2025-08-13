@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>숲 스트리머 숨기기 - 설정</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            color: #1a1a1a;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+        .section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        .section-header {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .section-subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        .section-content {
+            padding: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .input-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        .input-field {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .add-btn {
+            padding: 12px 24px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .add-btn:hover {
+            background: #0056b3;
+        }
+        .help-text {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .list-container {
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .list-item {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        .list-item:last-child {
+            border-bottom: none;
+        }
+        .list-item:hover {
+            background: #f8f9fa;
+        }
+        .item-name {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+        }
+        .item-tag {
+            color: #007bff;
+            font-weight: 500;
+        }
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+        .remove-btn:hover {
+            background: #c82333;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            flex: 1;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .clear-all-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+            margin-left: 10px;
+        }
+        .clear-all-btn:hover {
+            background: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚫 숲 스트리머 숨기기</h1>
+            <p>SoopLive에서 원하지 않는 콘텐츠를 차단하여 더 나은 시청 경험을 만들어보세요</p>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">📊 현재 상태</div>
+                <div class="section-subtitle">차단된 항목들의 현황을 확인하세요</div>
+            </div>
+            <div class="section-content">
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="streamerStatCount">0</div>
+                        <div class="stat-label">차단된 스트리머</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="tagStatCount">0</div>
+                        <div class="stat-label">차단된 태그</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">👤 스트리머 차단</div>
+                <div class="section-subtitle">특정 스트리머의 방송을 숨깁니다</div>
+            </div>
+            <div class="section-content">
+                <div class="input-group">
+                    <div class="help-text">여러 스트리머를 추가하려면 쉼표(,)로 구분해주세요</div>
+                    <div class="input-row">
+                        <input type="text" id="streamerInput" class="input-field" placeholder="스트리머 이름 입력">
+                        <button id="addStreamerBtn" class="add-btn">추가</button>
+                        <button id="clearAllStreamers" class="clear-all-btn">전체 삭제</button>
+                    </div>
+                </div>
+                <div class="list-container" id="streamerList"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">🏷️ 태그 차단</div>
+                <div class="section-subtitle">특정 태그가 포함된 모든 방송을 숨깁니다</div>
+            </div>
+            <div class="section-content">
+                <div class="input-group">
+                    <div class="help-text">여러 태그를 추가하려면 쉼표(,)로 구분해주세요</div>
+                    <div class="input-row">
+                        <input type="text" id="tagInput" class="input-field" placeholder="차단할 태그 입력">
+                        <button id="addTagBtn" class="add-btn">추가</button>
+                        <button id="clearAllTags" class="clear-all-btn">전체 삭제</button>
+                    </div>
+                </div>
+                <div class="list-container" id="tagList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="options.js"></script>
+</body>
+</html>
