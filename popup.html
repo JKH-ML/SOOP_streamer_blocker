@@ -19,6 +19,77 @@
             margin: 0 0 10px 0;
             font-size: 18px;
         }
+        .toggle-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .toggle-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .toggle-item:last-child {
+            margin-bottom: 0;
+        }
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        .toggle-icon {
+            font-size: 16px;
+        }
+        /* 토글 스위치 스타일 */
+        .toggle-switch {
+            position: relative;
+            width: 48px;
+            height: 24px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #007bff;
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        .divider {
+            height: 1px;
+            background: #eee;
+            margin: 15px 0;
+        }
         .status-section {
             background: white;
             padding: 20px;
@@ -48,7 +119,7 @@
             color: #666;
             font-size: 12px;
         }
-        .divider {
+        .v-divider {
             width: 1px;
             background: #eee;
             margin: 0 15px;
@@ -106,11 +177,63 @@
             border-radius: 50%;
             margin-right: 6px;
         }
+        .master-toggle {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .master-toggle .toggle-item {
+            margin-bottom: 0;
+        }
+        .master-toggle .toggle-label {
+            font-weight: 600;
+            color: #000;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h2>🚫 숲 스트리머 숨기기</h2>
+    </div>
+    
+    <div class="toggle-section">
+        <div class="master-toggle">
+            <div class="toggle-item">
+                <div class="toggle-label">
+                    <span class="toggle-icon">🔌</span>
+                    <span>전체 차단 기능</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="masterToggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="toggle-item">
+            <div class="toggle-label">
+                <span class="toggle-icon">👤</span>
+                <span>스트리머 차단</span>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="streamerToggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+        
+        <div class="toggle-item">
+            <div class="toggle-label">
+                <span class="toggle-icon">🏷️</span>
+                <span>태그 차단</span>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="tagToggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
     </div>
     
     <div class="status-section">
@@ -119,7 +242,7 @@
                 <div class="status-number" id="streamerCount">0</div>
                 <div class="status-label">차단된 스트리머</div>
             </div>
-            <div class="divider"></div>
+            <div class="v-divider"></div>
             <div class="status-item">
                 <div class="status-number" id="tagCount">0</div>
                 <div class="status-label">차단된 태그</div>

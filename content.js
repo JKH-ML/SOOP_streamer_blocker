@@ -2,12 +2,30 @@
 let blockedStreamers = [];
 let blockedTags = [];
 
+// 차단 기능 활성화 상태
+let masterEnabled = true;
+let streamerEnabled = true;
+let tagEnabled = true;
+
 // 초기화
 (async function init() {
     try {
-        const result = await chrome.storage.sync.get(['blockedStreamers', 'blockedTags']);
+        const result = await chrome.storage.sync.get([
+            'blockedStreamers', 
+            'blockedTags',
+            'masterBlockEnabled',
+            'streamerBlockEnabled',
+            'tagBlockEnabled'
+        ]);
+        
         blockedStreamers = result.blockedStreamers || [];
         blockedTags = result.blockedTags || [];
+        
+        // 토글 상태 로드 (기본값: true)
+        masterEnabled = result.masterBlockEnabled !== false;
+        streamerEnabled = result.streamerBlockEnabled !== false;
+        tagEnabled = result.tagBlockEnabled !== false;
+        
         hideBlockedContent();
         
         // 페이지 변경 감지를 위한 옵저버 설정
@@ -27,11 +45,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             blockedTags = message.blockedTags;
         }
         hideBlockedContent();
+    } else if (message.action === 'updateBlockSettings') {
+        // 토글 설정 업데이트
+        const settings = message.settings;
+        masterEnabled = settings.masterEnabled;
+        streamerEnabled = settings.streamerEnabled;
+        tagEnabled = settings.tagEnabled;
+        blockedStreamers = settings.blockedStreamers;
+        blockedTags = settings.blockedTags;
+        
+        // 모든 카드의 처리 상태 리셋
+        const allCards = document.querySelectorAll('li[data-type="cBox"]');
+        allCards.forEach(card => {
+            card.dataset.processed = 'false';
+            // 차단 해제 시 모든 카드 표시
+            if (!masterEnabled) {
+                card.style.display = '';
+                card.dataset.blocked = 'false';
+            }
+        });
+        
+        // 설정에 따라 차단 적용
+        if (masterEnabled) {
+            hideBlockedContent();
+        }
     }
 });
 
 // 차단된 스트리머와 태그 숨기기
 function hideBlockedContent() {
+    // 마스터 토글이 꺼져있으면 아무것도 하지 않음
+    if (!masterEnabled) {
+        console.log('숲 스트리머 숨기기: 차단 기능이 비활성화되어 있습니다.');
+        return;
+    }
+    
+    // 둘 다 비활성화면 리턴
+    if (!streamerEnabled && !tagEnabled) {
+        console.log('숲 스트리머 숨기기: 모든 개별 차단 기능이 비활성화되어 있습니다.');
+        return;
+    }
+    
     if (blockedStreamers.length === 0 && blockedTags.length === 0) return;
 
     // 스트리머 카드 찾기 (li 요소 중 data-type="cBox"인 것들)
@@ -44,8 +98,8 @@ function hideBlockedContent() {
         let shouldHide = false;
         let reason = '';
 
-        // 스트리머 이름으로 차단 확인
-        if (blockedStreamers.length > 0) {
+        // 스트리머 이름으로 차단 확인 (스트리머 차단이 활성화된 경우만)
+        if (streamerEnabled && blockedStreamers.length > 0) {
             const nickElements = card.querySelectorAll('.nick span, .nick');
             let streamerName = '';
             
@@ -63,8 +117,8 @@ function hideBlockedContent() {
             }
         }
 
-        // 태그로 차단 확인
-        if (!shouldHide && blockedTags.length > 0) {
+        // 태그로 차단 확인 (태그 차단이 활성화된 경우만)
+        if (!shouldHide && tagEnabled && blockedTags.length > 0) {
             const tagElements = card.querySelectorAll('.tag_wrap a');
             for (let tagEl of tagElements) {
                 const tagText = tagEl.textContent.trim();
