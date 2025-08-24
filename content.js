@@ -174,10 +174,14 @@ function setupObserver() {
       );
       processedCards.forEach((card) => {
         card.dataset.processed = "false";
+        card.dataset.contextMenuAdded = "false";
       });
 
-      // 약간의 지연 후 숨기기 실행 (DOM 로딩 완료 대기)
-      setTimeout(hideBlockedContent, 100);
+      // 약간의 지연 후 숨기기 실행 및 컨텍스트 메뉴 설정 (DOM 로딩 완료 대기)
+      setTimeout(() => {
+        hideBlockedContent();
+        setupContextMenu();
+      }, 100);
     }
   });
 
@@ -199,20 +203,160 @@ function setupObserver() {
         const allCards = document.querySelectorAll('li[data-type="cBox"]');
         allCards.forEach((card) => {
           card.dataset.processed = "false";
+          card.dataset.contextMenuAdded = "false";
         });
         hideBlockedContent();
+        setupContextMenu();
       }, 500);
     }
   }, 500);
 }
 
+// 컨텍스트 메뉴 생성 및 관리
+let contextMenu = null;
+
+function createContextMenu(streamerName, x, y) {
+  // 기존 메뉴가 있으면 제거
+  removeContextMenu();
+
+  const menu = document.createElement('div');
+  menu.id = 'streamer-context-menu';
+  menu.style.cssText = `
+    position: fixed;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    z-index: 10000;
+    min-width: 150px;
+    left: ${x}px;
+    top: ${y}px;
+  `;
+
+  const isBlocked = blockedStreamers.includes(streamerName);
+  const menuText = isBlocked ? `숨긴 스트리머에서 '${streamerName}' 제거` : `숨긴 스트리머에 '${streamerName}' 추가`;
+
+  const menuItem = document.createElement('div');
+  menuItem.style.cssText = `
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    background: white;
+    border-radius: 4px;
+  `;
+  menuItem.textContent = menuText;
+
+  menuItem.addEventListener('mouseenter', () => {
+    menuItem.style.backgroundColor = '#f0f0f0';
+  });
+
+  menuItem.addEventListener('mouseleave', () => {
+    menuItem.style.backgroundColor = 'white';
+  });
+
+  menuItem.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    try {
+      if (isBlocked) {
+        // 스트리머 차단 해제
+        const index = blockedStreamers.indexOf(streamerName);
+        if (index > -1) {
+          blockedStreamers.splice(index, 1);
+        }
+      } else {
+        // 스트리머 차단 추가
+        if (!blockedStreamers.includes(streamerName)) {
+          blockedStreamers.push(streamerName);
+        }
+      }
+
+      // 스토리지에 저장
+      await chrome.storage.sync.set({ blockedStreamers });
+
+      // 차단 리스트 업데이트 및 재처리
+      const allCards = document.querySelectorAll('li[data-type="cBox"]');
+      allCards.forEach((card) => {
+        card.dataset.processed = "false";
+      });
+      hideBlockedContent();
+
+    } catch (error) {
+      console.error('스트리머 차단 설정 오류:', error);
+    }
+
+    removeContextMenu();
+  });
+
+  menu.appendChild(menuItem);
+  document.body.appendChild(menu);
+  contextMenu = menu;
+
+  // 메뉴 외부 클릭 시 메뉴 제거
+  setTimeout(() => {
+    document.addEventListener('click', removeContextMenu, { once: true });
+  }, 0);
+}
+
+function removeContextMenu() {
+  if (contextMenu) {
+    contextMenu.remove();
+    contextMenu = null;
+  }
+}
+
+// 스트리머 카드에 우클릭 이벤트 추가
+function setupContextMenu() {
+  const streamerCards = document.querySelectorAll('li[data-type="cBox"]');
+  
+  streamerCards.forEach((card) => {
+    // 이미 이벤트가 추가된 카드는 스킵
+    if (card.dataset.contextMenuAdded === "true") return;
+
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+
+      // 스트리머 이름 찾기
+      const nickElements = card.querySelectorAll(".nick span, .nick");
+      let streamerName = "";
+
+      for (let nickEl of nickElements) {
+        const text = nickEl.textContent.trim();
+        if (text) {
+          streamerName = text;
+          break;
+        }
+      }
+
+      if (streamerName) {
+        createContextMenu(streamerName, e.pageX, e.pageY);
+      }
+    });
+
+    // 이벤트 추가 표시
+    card.dataset.contextMenuAdded = "true";
+  });
+}
+
 // 페이지 로드 완료 후 실행
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", hideBlockedContent);
+  document.addEventListener("DOMContentLoaded", () => {
+    hideBlockedContent();
+    setupContextMenu();
+  });
 } else {
   hideBlockedContent();
+  setupContextMenu();
 }
 
 // 추가적인 지연 실행 (동적 로딩 대비)
-setTimeout(hideBlockedContent, 1000);
-setTimeout(hideBlockedContent, 3000);
+setTimeout(() => {
+  hideBlockedContent();
+  setupContextMenu();
+}, 1000);
+setTimeout(() => {
+  hideBlockedContent();
+  setupContextMenu();
+}, 3000);
