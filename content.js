@@ -36,7 +36,7 @@ let tagEnabled = true;
 })();
 
 // 팝업에서 오는 메시지 처리
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.action === "updateBlockList") {
     if (message.blockedStreamers) {
       blockedStreamers = message.blockedStreamers;
@@ -69,6 +69,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (masterEnabled) {
       hideBlockedContent();
     }
+  } else if (message.action === "handleContextMenu") {
+    // 컨텍스트 메뉴에서 호출된 경우 처리
+    await handleContextMenuAction();
   }
 });
 
@@ -212,99 +215,117 @@ function setupObserver() {
   }, 500);
 }
 
-// 컨텍스트 메뉴 생성 및 관리
-let contextMenu = null;
+// 컨텍스트 메뉴 액션 처리
+let lastRightClickedCard = null;
 
-function createContextMenu(streamerName, x, y) {
-  // 기존 메뉴가 있으면 제거
-  removeContextMenu();
+// 토스트 메시지 표시
+function showToast(message) {
+  // 기존 토스트가 있으면 제거
+  const existingToast = document.getElementById('soop-blocker-toast');
+  if (existingToast) {
+    existingToast.remove();
+  }
 
-  const menu = document.createElement('div');
-  menu.id = 'streamer-context-menu';
-  menu.style.cssText = `
+  const toast = document.createElement('div');
+  toast.id = 'soop-blocker-toast';
+  toast.style.cssText = `
     position: fixed;
-    background: white;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    top: 20px;
+    right: 20px;
+    background: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     z-index: 10000;
-    min-width: 150px;
-    left: ${x}px;
-    top: ${y}px;
-  `;
-
-  const isBlocked = blockedStreamers.includes(streamerName);
-  const menuText = isBlocked ? `숨긴 스트리머에서 '${streamerName}' 제거` : `숨긴 스트리머에 '${streamerName}' 추가`;
-
-  const menuItem = document.createElement('div');
-  menuItem.style.cssText = `
-    padding: 8px 12px;
-    cursor: pointer;
     font-size: 14px;
-    color: #333;
-    background: white;
-    border-radius: 4px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    opacity: 0;
+    transform: translateX(100px);
+    transition: all 0.3s ease;
+    max-width: 300px;
+    word-wrap: break-word;
   `;
-  menuItem.textContent = menuText;
-
-  menuItem.addEventListener('mouseenter', () => {
-    menuItem.style.backgroundColor = '#f0f0f0';
-  });
-
-  menuItem.addEventListener('mouseleave', () => {
-    menuItem.style.backgroundColor = 'white';
-  });
-
-  menuItem.addEventListener('click', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    try {
-      if (isBlocked) {
-        // 스트리머 차단 해제
-        const index = blockedStreamers.indexOf(streamerName);
-        if (index > -1) {
-          blockedStreamers.splice(index, 1);
-        }
-      } else {
-        // 스트리머 차단 추가
-        if (!blockedStreamers.includes(streamerName)) {
-          blockedStreamers.push(streamerName);
-        }
-      }
-
-      // 스토리지에 저장
-      await chrome.storage.sync.set({ blockedStreamers });
-
-      // 차단 리스트 업데이트 및 재처리
-      const allCards = document.querySelectorAll('li[data-type="cBox"]');
-      allCards.forEach((card) => {
-        card.dataset.processed = "false";
-      });
-      hideBlockedContent();
-
-    } catch (error) {
-      console.error('스트리머 차단 설정 오류:', error);
-    }
-
-    removeContextMenu();
-  });
-
-  menu.appendChild(menuItem);
-  document.body.appendChild(menu);
-  contextMenu = menu;
-
-  // 메뉴 외부 클릭 시 메뉴 제거
+  toast.textContent = message;
+  
+  document.body.appendChild(toast);
+  
+  // 애니메이션으로 표시
   setTimeout(() => {
-    document.addEventListener('click', removeContextMenu, { once: true });
-  }, 0);
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(0)';
+  }, 10);
+  
+  // 3초 후 자동 제거
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(100px)';
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.remove();
+      }
+    }, 300);
+  }, 3000);
 }
 
-function removeContextMenu() {
-  if (contextMenu) {
-    contextMenu.remove();
-    contextMenu = null;
+async function handleContextMenuAction() {
+  if (!lastRightClickedCard) {
+    showToast('스트리머 카드를 우클릭한 후 메뉴를 선택해주세요.');
+    return;
   }
+
+  // 스트리머 이름 찾기
+  const nickElements = lastRightClickedCard.querySelectorAll(".nick span, .nick");
+  let streamerName = "";
+
+  for (let nickEl of nickElements) {
+    const text = nickEl.textContent.trim();
+    if (text) {
+      streamerName = text;
+      break;
+    }
+  }
+
+  if (!streamerName) {
+    showToast('스트리머 이름을 찾을 수 없습니다.');
+    return;
+  }
+
+  try {
+    const isBlocked = blockedStreamers.includes(streamerName);
+    
+    if (isBlocked) {
+      // 스트리머 차단 해제
+      const index = blockedStreamers.indexOf(streamerName);
+      if (index > -1) {
+        blockedStreamers.splice(index, 1);
+      }
+      showToast(`${streamerName} 숨김 해제`);
+    } else {
+      // 스트리머 차단 추가
+      if (!blockedStreamers.includes(streamerName)) {
+        blockedStreamers.push(streamerName);
+      }
+      showToast(`${streamerName} 숨김 처리`);
+    }
+
+    // 스토리지에 저장
+    await chrome.storage.sync.set({ blockedStreamers });
+
+    // 차단 리스트 업데이트 및 재처리
+    const allCards = document.querySelectorAll('li[data-type="cBox"]');
+    allCards.forEach((card) => {
+      card.dataset.processed = "false";
+    });
+    hideBlockedContent();
+
+  } catch (error) {
+    console.error('스트리머 차단 설정 오류:', error);
+    showToast('오류가 발생했습니다.');
+  }
+  
+  // 초기화
+  lastRightClickedCard = null;
 }
 
 // 스트리머 카드에 우클릭 이벤트 추가
@@ -316,8 +337,9 @@ function setupContextMenu() {
     if (card.dataset.contextMenuAdded === "true") return;
 
     card.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-
+      // 우클릭된 카드 저장 (네이티브 컨텍스트 메뉴에서 사용)
+      lastRightClickedCard = card;
+      
       // 스트리머 이름 찾기
       const nickElements = card.querySelectorAll(".nick span, .nick");
       let streamerName = "";
@@ -331,7 +353,18 @@ function setupContextMenu() {
       }
 
       if (streamerName) {
-        createContextMenu(streamerName, e.pageX, e.pageY);
+        // 현재 차단 상태에 따라 컨텍스트 메뉴 텍스트 업데이트
+        const isBlocked = blockedStreamers.includes(streamerName);
+        const menuTitle = isBlocked ? "스트리머 숨기기 해제" : "스트리머 숨기기";
+        
+        // 백그라운드 스크립트에 메뉴 업데이트 요청 (오류 무시)
+        chrome.runtime.sendMessage({
+          action: "updateContextMenu",
+          title: menuTitle
+        }).catch(error => {
+          // 초기 로드 시 connection 오류 무시
+          console.debug('Context menu update failed:', error);
+        });
       }
     });
 

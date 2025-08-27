@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "숲 스트리머 숨기기",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "SoopLive에서 원하지 않는 스트리머를 숨기는 익스텐션",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "contextMenus"
   ],
   "host_permissions": [
     "https://www.sooplive.co.kr/*"
@@ -32,6 +33,9 @@
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     }
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "options_page": "options.html"
 }
