@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
   const streamerCountEl = document.getElementById("streamerCount");
   const tagCountEl = document.getElementById("tagCount");
   const openSettingsBtn = document.getElementById("openSettings");
@@ -9,10 +9,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const streamerToggle = document.getElementById("streamerToggle");
   const tagToggle = document.getElementById("tagToggle");
 
-  // 초기 로드
-  loadStats();
-  loadToggleStates();
-  checkCurrentPage();
+  // 초기 로드 (sync → local 마이그레이션 포함)
+  await ensureStorageMigration();
+  await loadStats();
+  await loadToggleStates();
+  await checkCurrentPage();
 
   // 설정 페이지 열기
   openSettingsBtn.addEventListener("click", function () {
@@ -29,7 +30,7 @@ document.addEventListener("DOMContentLoaded", function () {
       tagToggle.checked = false;
     } else {
       // 마스터 토글이 켜지면 이전 상태 복원
-      const result = await chrome.storage.sync.get([
+      const result = await chrome.storage.local.get([
         "streamerBlockEnabled",
         "tagBlockEnabled",
       ]);
@@ -38,7 +39,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // 상태 저장
-    await chrome.storage.sync.set({
+    await chrome.storage.local.set({
       masterBlockEnabled: isEnabled,
       streamerBlockEnabled: streamerToggle.checked,
       tagBlockEnabled: tagToggle.checked,
@@ -54,7 +55,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // 스트리머 토글 이벤트
   streamerToggle.addEventListener("change", async function () {
-    await chrome.storage.sync.set({
+    await chrome.storage.local.set({
       streamerBlockEnabled: this.checked,
     });
     notifyContentScript();
@@ -62,7 +63,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // 태그 토글 이벤트
   tagToggle.addEventListener("change", async function () {
-    await chrome.storage.sync.set({
+    await chrome.storage.local.set({
       tagBlockEnabled: this.checked,
     });
     notifyContentScript();
@@ -71,7 +72,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // 토글 상태 로드
   async function loadToggleStates() {
     try {
-      const result = await chrome.storage.sync.get([
+      const result = await chrome.storage.local.get([
         "masterBlockEnabled",
         "streamerBlockEnabled",
         "tagBlockEnabled",
@@ -97,7 +98,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // 통계 로드
   async function loadStats() {
     try {
-      const result = await chrome.storage.sync.get([
+      const result = await chrome.storage.local.get([
         "blockedStreamers",
         "blockedTags",
       ]);
@@ -121,7 +122,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (tab.url && tab.url.includes("sooplive.co.kr")) {
         // 차단 기능 상태 확인
-        const result = await chrome.storage.sync.get(["masterBlockEnabled"]);
+        const result = await chrome.storage.local.get(["masterBlockEnabled"]);
         const isEnabled = result.masterBlockEnabled !== false;
 
         if (isEnabled) {
@@ -148,7 +149,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const tabs = await chrome.tabs.query({
         url: "https://www.sooplive.co.kr/*",
       });
-      const settings = await chrome.storage.sync.get([
+      const settings = await chrome.storage.local.get([
         "masterBlockEnabled",
         "streamerBlockEnabled",
         "tagBlockEnabled",
@@ -162,12 +163,12 @@ document.addEventListener("DOMContentLoaded", function () {
             action: "updateBlockSettings",
             settings: {
               masterEnabled: settings.masterBlockEnabled !== false,
-              streamerEnabled: settings.streamerBlockEnabled !== false,
-              tagEnabled: settings.tagBlockEnabled !== false,
-              blockedStreamers: settings.blockedStreamers || [],
-              blockedTags: settings.blockedTags || [],
-            },
-          })
+            streamerEnabled: settings.streamerBlockEnabled !== false,
+            tagEnabled: settings.tagBlockEnabled !== false,
+            blockedStreamers: settings.blockedStreamers || [],
+            blockedTags: settings.blockedTags || [],
+          },
+        })
           .catch(() => {
             // 탭이 응답하지 않는 경우 무시
           });
@@ -177,6 +178,65 @@ document.addEventListener("DOMContentLoaded", function () {
       checkCurrentPage();
     } catch (error) {
       console.error("콘텐츠 스크립트 알림 중 오류:", error);
+    }
+  }
+
+  // storage.sync → storage.local 마이그레이션
+  async function ensureStorageMigration() {
+    try {
+      const localData = await chrome.storage.local.get([
+        "storageMigrated",
+        "blockedStreamers",
+        "blockedTags",
+        "masterBlockEnabled",
+        "streamerBlockEnabled",
+        "tagBlockEnabled",
+      ]);
+
+      if (localData.storageMigrated) return;
+
+      const hasLocalData =
+        (localData.blockedStreamers && localData.blockedStreamers.length > 0) ||
+        (localData.blockedTags && localData.blockedTags.length > 0) ||
+        typeof localData.masterBlockEnabled !== "undefined" ||
+        typeof localData.streamerBlockEnabled !== "undefined" ||
+        typeof localData.tagBlockEnabled !== "undefined";
+
+      if (hasLocalData) {
+        await chrome.storage.local.set({ storageMigrated: true });
+        return;
+      }
+
+      const syncData = await chrome.storage.sync.get([
+        "blockedStreamers",
+        "blockedTags",
+        "masterBlockEnabled",
+        "streamerBlockEnabled",
+        "tagBlockEnabled",
+      ]);
+
+      const payload = {
+        blockedStreamers: syncData.blockedStreamers || [],
+        blockedTags: syncData.blockedTags || [],
+        masterBlockEnabled: syncData.masterBlockEnabled,
+        streamerBlockEnabled: syncData.streamerBlockEnabled,
+        tagBlockEnabled: syncData.tagBlockEnabled,
+      };
+
+      const hasSyncData =
+        payload.blockedStreamers.length > 0 ||
+        payload.blockedTags.length > 0 ||
+        typeof payload.masterBlockEnabled !== "undefined" ||
+        typeof payload.streamerBlockEnabled !== "undefined" ||
+        typeof payload.tagBlockEnabled !== "undefined";
+
+      if (hasSyncData) {
+        await chrome.storage.local.set({ ...payload, storageMigrated: true });
+      } else {
+        await chrome.storage.local.set({ storageMigrated: true });
+      }
+    } catch (error) {
+      console.error("스토리지 마이그레이션 중 오류:", error);
     }
   }
 });

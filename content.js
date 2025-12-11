@@ -10,7 +10,9 @@ let tagEnabled = true;
 // 초기화
 (async function init() {
   try {
-    const result = await chrome.storage.sync.get([
+    await ensureStorageMigration();
+
+    const result = await chrome.storage.local.get([
       "blockedStreamers",
       "blockedTags",
       "masterBlockEnabled",
@@ -34,6 +36,65 @@ let tagEnabled = true;
     console.error("숲 스트리머 숨기기 초기화 오류:", error);
   }
 })();
+
+// storage.sync 데이터를 storage.local로 옮기는 1회성 마이그레이션
+async function ensureStorageMigration() {
+  try {
+    const localData = await chrome.storage.local.get([
+      "storageMigrated",
+      "blockedStreamers",
+      "blockedTags",
+      "masterBlockEnabled",
+      "streamerBlockEnabled",
+      "tagBlockEnabled",
+    ]);
+
+    if (localData.storageMigrated) return;
+
+    const hasLocalData =
+      (localData.blockedStreamers && localData.blockedStreamers.length > 0) ||
+      (localData.blockedTags && localData.blockedTags.length > 0) ||
+      typeof localData.masterBlockEnabled !== "undefined" ||
+      typeof localData.streamerBlockEnabled !== "undefined" ||
+      typeof localData.tagBlockEnabled !== "undefined";
+
+    if (hasLocalData) {
+      await chrome.storage.local.set({ storageMigrated: true });
+      return;
+    }
+
+    const syncData = await chrome.storage.sync.get([
+      "blockedStreamers",
+      "blockedTags",
+      "masterBlockEnabled",
+      "streamerBlockEnabled",
+      "tagBlockEnabled",
+    ]);
+
+    const payload = {
+      blockedStreamers: syncData.blockedStreamers || [],
+      blockedTags: syncData.blockedTags || [],
+      masterBlockEnabled: syncData.masterBlockEnabled,
+      streamerBlockEnabled: syncData.streamerBlockEnabled,
+      tagBlockEnabled: syncData.tagBlockEnabled,
+    };
+
+    const hasSyncData =
+      payload.blockedStreamers.length > 0 ||
+      payload.blockedTags.length > 0 ||
+      typeof payload.masterBlockEnabled !== "undefined" ||
+      typeof payload.streamerBlockEnabled !== "undefined" ||
+      typeof payload.tagBlockEnabled !== "undefined";
+
+    if (hasSyncData) {
+      await chrome.storage.local.set({ ...payload, storageMigrated: true });
+    } else {
+      await chrome.storage.local.set({ storageMigrated: true });
+    }
+  } catch (error) {
+    console.error("스토리지 마이그레이션 중 오류:", error);
+  }
+}
 
 // 팝업에서 오는 메시지 처리
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
@@ -310,7 +371,7 @@ async function handleContextMenuAction() {
     }
 
     // 스토리지에 저장
-    await chrome.storage.sync.set({ blockedStreamers });
+    await chrome.storage.local.set({ blockedStreamers });
 
     // 차단 리스트 업데이트 및 재처리
     const allCards = document.querySelectorAll('li[data-type="cBox"]');

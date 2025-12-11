@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // 요소들
     const streamerInput = document.getElementById('streamerInput');
     const addStreamerBtn = document.getElementById('addStreamerBtn');
@@ -23,8 +23,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let allStreamers = [];
     let allTags = [];
 
-    // 초기 로드
-    loadAllData();
+    // 초기 로드 (sync → local 마이그레이션 포함)
+    await ensureStorageMigration();
+    await loadAllData();
 
     // 이벤트 리스너
     addStreamerBtn.addEventListener('click', addStreamers);
@@ -47,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
     tagSearch.addEventListener('input', function() {
         searchTags(this.value);
     });
-    
+
     // 내보내기/가져오기 이벤트 리스너
     exportBtn.addEventListener('click', exportBlockList);
     importFile.addEventListener('change', importBlockList);
@@ -62,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 통계 로드
     async function loadStats() {
         try {
-            const result = await chrome.storage.sync.get(['blockedStreamers', 'blockedTags']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags']);
             const streamers = result.blockedStreamers || [];
             const tags = result.blockedTags || [];
 
@@ -82,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         try {
-            const result = await chrome.storage.sync.get('blockedStreamers');
+            const result = await chrome.storage.local.get('blockedStreamers');
             const blockedStreamers = result.blockedStreamers || [];
 
             const streamerNames = input.split(',')
@@ -107,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             if (newStreamers.length > 0) {
-                await chrome.storage.sync.set({ blockedStreamers });
+                await chrome.storage.local.set({ blockedStreamers });
                 notifyContentScript('blockedStreamers', blockedStreamers);
             }
 
@@ -130,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         try {
-            const result = await chrome.storage.sync.get('blockedTags');
+            const result = await chrome.storage.local.get('blockedTags');
             const blockedTags = result.blockedTags || [];
 
             const tagNames = input.split(',')
@@ -155,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             if (newTags.length > 0) {
-                await chrome.storage.sync.set({ blockedTags });
+                await chrome.storage.local.set({ blockedTags });
                 notifyContentScript('blockedTags', blockedTags);
             }
 
@@ -172,13 +173,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // 스트리머 제거
     async function removeStreamer(streamerName) {
         try {
-            const result = await chrome.storage.sync.get('blockedStreamers');
+            const result = await chrome.storage.local.get('blockedStreamers');
             const blockedStreamers = result.blockedStreamers || [];
             
             const index = blockedStreamers.indexOf(streamerName);
             if (index > -1) {
                 blockedStreamers.splice(index, 1);
-                await chrome.storage.sync.set({ blockedStreamers });
+                await chrome.storage.local.set({ blockedStreamers });
                 notifyContentScript('blockedStreamers', blockedStreamers);
                 await loadAllData();
                 // 검색 상태 유지
@@ -194,13 +195,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // 태그 제거
     async function removeTag(tagName) {
         try {
-            const result = await chrome.storage.sync.get('blockedTags');
+            const result = await chrome.storage.local.get('blockedTags');
             const blockedTags = result.blockedTags || [];
             
             const index = blockedTags.indexOf(tagName);
             if (index > -1) {
                 blockedTags.splice(index, 1);
-                await chrome.storage.sync.set({ blockedTags });
+                await chrome.storage.local.set({ blockedTags });
                 notifyContentScript('blockedTags', blockedTags);
                 await loadAllData();
                 // 검색 상태 유지
@@ -218,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!confirm('모든 차단된 스트리머를 삭제하시겠습니까?')) return;
         
         try {
-            await chrome.storage.sync.set({ blockedStreamers: [] });
+            await chrome.storage.local.set({ blockedStreamers: [] });
             notifyContentScript('blockedStreamers', []);
             streamerSearch.value = ''; // 검색창 초기화
             await loadAllData();
@@ -232,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!confirm('모든 차단된 태그를 삭제하시겠습니까?')) return;
         
         try {
-            await chrome.storage.sync.set({ blockedTags: [] });
+            await chrome.storage.local.set({ blockedTags: [] });
             notifyContentScript('blockedTags', []);
             tagSearch.value = ''; // 검색창 초기화
             await loadAllData();
@@ -244,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 스트리머 목록 로드
     async function loadStreamerList() {
         try {
-            const result = await chrome.storage.sync.get('blockedStreamers');
+            const result = await chrome.storage.local.get('blockedStreamers');
             const blockedStreamers = result.blockedStreamers || [];
             allStreamers = blockedStreamers; // 전체 데이터 저장
 
@@ -324,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 태그 목록 로드
     async function loadTagList() {
         try {
-            const result = await chrome.storage.sync.get('blockedTags');
+            const result = await chrome.storage.local.get('blockedTags');
             const blockedTags = result.blockedTags || [];
             allTags = blockedTags; // 전체 데이터 저장
 
@@ -404,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 차단 목록 내보내기
     async function exportBlockList() {
         try {
-            const result = await chrome.storage.sync.get(['blockedStreamers', 'blockedTags']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags']);
             const blockedStreamers = result.blockedStreamers || [];
             const blockedTags = result.blockedTags || [];
 
@@ -484,7 +485,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             // 기존 목록과 병합
-            const result = await chrome.storage.sync.get(['blockedStreamers', 'blockedTags']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags']);
             const existingStreamers = result.blockedStreamers || [];
             const existingTags = result.blockedTags || [];
 
@@ -514,7 +515,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             // 저장
-            await chrome.storage.sync.set({
+            await chrome.storage.local.set({
                 blockedStreamers: existingStreamers,
                 blockedTags: existingTags
             });
@@ -587,6 +588,65 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (message) {
             alert(message);
+        }
+    }
+
+    // storage.sync → storage.local 마이그레이션
+    async function ensureStorageMigration() {
+        try {
+            const localData = await chrome.storage.local.get([
+                'storageMigrated',
+                'blockedStreamers',
+                'blockedTags',
+                'masterBlockEnabled',
+                'streamerBlockEnabled',
+                'tagBlockEnabled',
+            ]);
+
+            if (localData.storageMigrated) return;
+
+            const hasLocalData =
+                (localData.blockedStreamers && localData.blockedStreamers.length > 0) ||
+                (localData.blockedTags && localData.blockedTags.length > 0) ||
+                typeof localData.masterBlockEnabled !== 'undefined' ||
+                typeof localData.streamerBlockEnabled !== 'undefined' ||
+                typeof localData.tagBlockEnabled !== 'undefined';
+
+            if (hasLocalData) {
+                await chrome.storage.local.set({ storageMigrated: true });
+                return;
+            }
+
+            const syncData = await chrome.storage.sync.get([
+                'blockedStreamers',
+                'blockedTags',
+                'masterBlockEnabled',
+                'streamerBlockEnabled',
+                'tagBlockEnabled',
+            ]);
+
+            const payload = {
+                blockedStreamers: syncData.blockedStreamers || [],
+                blockedTags: syncData.blockedTags || [],
+                masterBlockEnabled: syncData.masterBlockEnabled,
+                streamerBlockEnabled: syncData.streamerBlockEnabled,
+                tagBlockEnabled: syncData.tagBlockEnabled,
+            };
+
+            const hasSyncData =
+                payload.blockedStreamers.length > 0 ||
+                payload.blockedTags.length > 0 ||
+                typeof payload.masterBlockEnabled !== 'undefined' ||
+                typeof payload.streamerBlockEnabled !== 'undefined' ||
+                typeof payload.tagBlockEnabled !== 'undefined';
+
+            if (hasSyncData) {
+                await chrome.storage.local.set({ ...payload, storageMigrated: true });
+            } else {
+                await chrome.storage.local.set({ storageMigrated: true });
+            }
+        } catch (error) {
+            console.error('스토리지 마이그레이션 중 오류:', error);
         }
     }
 
