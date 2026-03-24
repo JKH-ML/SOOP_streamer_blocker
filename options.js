@@ -562,7 +562,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 콘텐츠 스크립트에 변경사항 알림
     async function notifyContentScript(type, data) {
         try {
-            const tabs = await chrome.tabs.query({ url: 'https://www.sooplive.co.kr/*' });
+            const tabs = await chrome.tabs.query({
+                url: [
+                    'https://www.sooplive.co.kr/*',
+                    'https://www.sooplive.com/*'
+                ]
+            });
             const message = { action: 'updateBlockList' };
             message[type] = data;
 

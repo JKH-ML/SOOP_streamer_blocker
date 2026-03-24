@@ -4,7 +4,10 @@ chrome.runtime.onInstalled.addListener(() => {
     id: "hideStreamer",
     title: "스트리머 숨기기",
     contexts: ["all"],
-    documentUrlPatterns: ["https://www.sooplive.co.kr/*"]
+    documentUrlPatterns: [
+      "https://www.sooplive.co.kr/*",
+      "https://www.sooplive.com/*"
+    ]
   });
 });
 

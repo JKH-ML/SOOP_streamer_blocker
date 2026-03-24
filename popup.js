@@ -120,7 +120,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         currentWindow: true,
       });
 
-      if (tab.url && tab.url.includes("sooplive.co.kr")) {
+      if (tab.url && (tab.url.includes("sooplive.co.kr") || tab.url.includes("sooplive.com"))) {
         // 차단 기능 상태 확인
         const result = await chrome.storage.local.get(["masterBlockEnabled"]);
         const isEnabled = result.masterBlockEnabled !== false;
@@ -147,7 +147,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   async function notifyContentScript() {
     try {
       const tabs = await chrome.tabs.query({
-        url: "https://www.sooplive.co.kr/*",
+        url: [
+          "https://www.sooplive.co.kr/*",
+          "https://www.sooplive.com/*"
+        ],
       });
       const settings = await chrome.storage.local.get([
         "masterBlockEnabled",
