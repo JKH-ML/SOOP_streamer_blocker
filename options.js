@@ -5,15 +5,22 @@ document.addEventListener('DOMContentLoaded', async function() {
     const clearAllStreamers = document.getElementById('clearAllStreamers');
     const streamerList = document.getElementById('streamerList');
     const streamerSearch = document.getElementById('streamerSearch');
-    
+
     const tagInput = document.getElementById('tagInput');
     const addTagBtn = document.getElementById('addTagBtn');
     const clearAllTags = document.getElementById('clearAllTags');
     const tagList = document.getElementById('tagList');
     const tagSearch = document.getElementById('tagSearch');
-    
+
+    const allowedStreamerInput = document.getElementById('allowedStreamerInput');
+    const addAllowedStreamerBtn = document.getElementById('addAllowedStreamerBtn');
+    const clearAllAllowedStreamers = document.getElementById('clearAllAllowedStreamers');
+    const allowedStreamerList = document.getElementById('allowedStreamerList');
+    const allowedStreamerSearch = document.getElementById('allowedStreamerSearch');
+
     const streamerStatCount = document.getElementById('streamerStatCount');
     const tagStatCount = document.getElementById('tagStatCount');
+    const allowedStatCount = document.getElementById('allowedStatCount');
     
     const exportBtn = document.getElementById('exportBtn');
     const importFile = document.getElementById('importFile');
@@ -22,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 전체 데이터 저장
     let allStreamers = [];
     let allTags = [];
+    let allAllowedStreamers = [];
 
     // 초기 로드 (sync → local 마이그레이션 포함)
     await ensureStorageMigration();
@@ -40,6 +48,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
     clearAllTags.addEventListener('click', clearAllTagsList);
 
+    addAllowedStreamerBtn.addEventListener('click', addAllowedStreamers);
+    allowedStreamerInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') addAllowedStreamers();
+    });
+    clearAllAllowedStreamers.addEventListener('click', clearAllAllowedStreamersList);
+
     // 검색 이벤트 리스너
     streamerSearch.addEventListener('input', function() {
         searchStreamers(this.value);
@@ -47,6 +61,10 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     tagSearch.addEventListener('input', function() {
         searchTags(this.value);
+    });
+
+    allowedStreamerSearch.addEventListener('input', function() {
+        searchAllowedStreamers(this.value);
     });
 
     // 내보내기/가져오기 이벤트 리스너
@@ -58,17 +76,20 @@ document.addEventListener('DOMContentLoaded', async function() {
         await loadStats();
         await loadStreamerList();
         await loadTagList();
+        await loadAllowedStreamerList();
     }
 
     // 통계 로드
     async function loadStats() {
         try {
-            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'allowedStreamers']);
             const streamers = result.blockedStreamers || [];
             const tags = result.blockedTags || [];
+            const allowed = result.allowedStreamers || [];
 
             streamerStatCount.textContent = streamers.length;
             tagStatCount.textContent = tags.length;
+            allowedStatCount.textContent = allowed.length;
         } catch (error) {
             console.error('통계 로드 중 오류:', error);
         }
@@ -231,7 +252,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 모든 태그 삭제
     async function clearAllTagsList() {
         if (!confirm('모든 차단된 태그를 삭제하시겠습니까?')) return;
-        
+
         try {
             await chrome.storage.local.set({ blockedTags: [] });
             notifyContentScript('blockedTags', []);
@@ -240,6 +261,165 @@ document.addEventListener('DOMContentLoaded', async function() {
         } catch (error) {
             console.error('태그 전체 삭제 중 오류:', error);
         }
+    }
+
+    // 허용 스트리머 추가
+    async function addAllowedStreamers() {
+        const input = allowedStreamerInput.value.trim();
+        if (!input) {
+            alert('스트리머 이름을 입력해주세요.');
+            return;
+        }
+
+        try {
+            const result = await chrome.storage.local.get('allowedStreamers');
+            const allowedStreamers = result.allowedStreamers || [];
+
+            const names = input.split(',')
+                .map(name => name.trim())
+                .filter(name => name.length > 0);
+
+            if (names.length === 0) {
+                alert('유효한 스트리머 이름을 입력해주세요.');
+                return;
+            }
+
+            const newNames = [];
+            const duplicates = [];
+
+            names.forEach(name => {
+                if (allowedStreamers.includes(name)) {
+                    duplicates.push(name);
+                } else {
+                    newNames.push(name);
+                    allowedStreamers.push(name);
+                }
+            });
+
+            if (newNames.length > 0) {
+                await chrome.storage.local.set({ allowedStreamers });
+                notifyContentScript('allowedStreamers', allowedStreamers);
+            }
+
+            allowedStreamerInput.value = '';
+            await loadAllData();
+
+            showResultMessage(newNames, duplicates, '스트리머');
+        } catch (error) {
+            console.error('허용 스트리머 추가 중 오류:', error);
+            alert('허용 스트리머 추가 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 허용 스트리머 제거
+    async function removeAllowedStreamer(name) {
+        try {
+            const result = await chrome.storage.local.get('allowedStreamers');
+            const allowedStreamers = result.allowedStreamers || [];
+
+            const index = allowedStreamers.indexOf(name);
+            if (index > -1) {
+                allowedStreamers.splice(index, 1);
+                await chrome.storage.local.set({ allowedStreamers });
+                notifyContentScript('allowedStreamers', allowedStreamers);
+                await loadAllData();
+                if (allowedStreamerSearch.value) {
+                    searchAllowedStreamers(allowedStreamerSearch.value);
+                }
+            }
+        } catch (error) {
+            console.error('허용 스트리머 제거 중 오류:', error);
+        }
+    }
+
+    // 모든 허용 스트리머 삭제
+    async function clearAllAllowedStreamersList() {
+        if (!confirm('모든 태그 차단 예외 스트리머를 삭제하시겠습니까?')) return;
+
+        try {
+            await chrome.storage.local.set({ allowedStreamers: [] });
+            notifyContentScript('allowedStreamers', []);
+            allowedStreamerSearch.value = '';
+            await loadAllData();
+        } catch (error) {
+            console.error('허용 스트리머 전체 삭제 중 오류:', error);
+        }
+    }
+
+    // 허용 스트리머 목록 로드
+    async function loadAllowedStreamerList() {
+        try {
+            const result = await chrome.storage.local.get('allowedStreamers');
+            const allowedStreamers = result.allowedStreamers || [];
+            allAllowedStreamers = allowedStreamers;
+
+            if (allowedStreamers.length === 0) {
+                allowedStreamerList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">✅</div>
+                        <div>태그 차단 예외 스트리머가 없습니다</div>
+                    </div>
+                `;
+                return;
+            }
+
+            renderAllowedStreamerList(allowedStreamers);
+        } catch (error) {
+            console.error('허용 스트리머 목록 로드 중 오류:', error);
+        }
+    }
+
+    // 허용 스트리머 목록 렌더링
+    function renderAllowedStreamerList(streamers, searchTerm = '') {
+        if (streamers.length === 0 && searchTerm) {
+            allowedStreamerList.innerHTML = `
+                <div class="search-result-info">
+                    검색 결과가 없습니다: "${escapeHtml(searchTerm)}"
+                </div>
+            `;
+            return;
+        }
+
+        allowedStreamerList.innerHTML = '';
+        streamers.forEach(name => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+
+            let displayName = escapeHtml(name);
+            if (searchTerm) {
+                const regex = new RegExp(`(${escapeHtml(searchTerm)})`, 'gi');
+                displayName = displayName.replace(regex, '<span class="highlight">$1</span>');
+            }
+
+            item.innerHTML = `
+                <span class="item-name">${displayName}</span>
+                <button class="remove-btn" data-name="${escapeHtml(name)}">삭제</button>
+            `;
+
+            item.querySelector('.remove-btn').addEventListener('click', () => removeAllowedStreamer(name));
+            allowedStreamerList.appendChild(item);
+        });
+
+        if (searchTerm && streamers.length > 0) {
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'search-result-info';
+            infoDiv.textContent = `검색 결과: ${streamers.length}명 / 전체: ${allAllowedStreamers.length}명`;
+            allowedStreamerList.insertBefore(infoDiv, allowedStreamerList.firstChild);
+        }
+    }
+
+    // 허용 스트리머 검색
+    function searchAllowedStreamers(searchTerm) {
+        if (!searchTerm.trim()) {
+            renderAllowedStreamerList(allAllowedStreamers);
+            return;
+        }
+
+        const filtered = allAllowedStreamers.filter(name =>
+            name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        renderAllowedStreamerList(filtered, searchTerm);
     }
 
     // 스트리머 목록 로드
@@ -405,13 +585,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 차단 목록 내보내기
     async function exportBlockList() {
         try {
-            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'allowedStreamers']);
             const blockedStreamers = result.blockedStreamers || [];
             const blockedTags = result.blockedTags || [];
+            const allowedStreamers = result.allowedStreamers || [];
 
             let content = '=== 숲 스트리머 숨기기 차단 목록 ===\n';
             content += '생성 일시: ' + new Date().toLocaleString('ko-KR') + '\n\n';
-            
+
             content += '[차단된 스트리머]\n';
             if (blockedStreamers.length > 0) {
                 blockedStreamers.forEach(streamer => {
@@ -420,7 +601,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             } else {
                 content += '(없음)\n';
             }
-            
+
             content += '\n[차단된 태그]\n';
             if (blockedTags.length > 0) {
                 blockedTags.forEach(tag => {
@@ -429,8 +610,17 @@ document.addEventListener('DOMContentLoaded', async function() {
             } else {
                 content += '(없음)\n';
             }
-            
-            content += '\n=== 총 ' + (blockedStreamers.length + blockedTags.length) + '개 항목 ===';
+
+            content += '\n[태그 차단 예외 스트리머]\n';
+            if (allowedStreamers.length > 0) {
+                allowedStreamers.forEach(name => {
+                    content += name + '\n';
+                });
+            } else {
+                content += '(없음)\n';
+            }
+
+            content += '\n=== 총 ' + (blockedStreamers.length + blockedTags.length + allowedStreamers.length) + '개 항목 ===';
 
             // 파일 다운로드
             const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -461,38 +651,50 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             let isStreamerSection = false;
             let isTagSection = false;
+            let isAllowedSection = false;
             const newStreamers = [];
             const newTags = [];
+            const newAllowed = [];
 
             lines.forEach(line => {
                 line = line.trim();
-                
+
                 if (line === '[차단된 스트리머]') {
                     isStreamerSection = true;
                     isTagSection = false;
+                    isAllowedSection = false;
                 } else if (line === '[차단된 태그]') {
                     isStreamerSection = false;
                     isTagSection = true;
+                    isAllowedSection = false;
+                } else if (line === '[태그 차단 예외 스트리머]') {
+                    isStreamerSection = false;
+                    isTagSection = false;
+                    isAllowedSection = true;
                 } else if (line.startsWith('===') || line.startsWith('생성 일시:') || line === '(없음)' || !line) {
                     // 헤더나 빈 줄 무시
                 } else if (isStreamerSection) {
                     newStreamers.push(line);
                 } else if (isTagSection) {
-                    // # 제거
                     const tag = line.startsWith('#') ? line.substring(1) : line;
                     newTags.push(tag);
+                } else if (isAllowedSection) {
+                    newAllowed.push(line);
                 }
             });
 
             // 기존 목록과 병합
-            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'allowedStreamers']);
             const existingStreamers = result.blockedStreamers || [];
             const existingTags = result.blockedTags || [];
+            const existingAllowed = result.allowedStreamers || [];
 
             let addedStreamers = 0;
             let duplicateStreamers = 0;
             let addedTags = 0;
             let duplicateTags = 0;
+            let addedAllowed = 0;
+            let duplicateAllowed = 0;
 
             // 스트리머 병합
             newStreamers.forEach(streamer => {
@@ -514,15 +716,27 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             });
 
+            // 허용 스트리머 병합
+            newAllowed.forEach(name => {
+                if (!existingAllowed.includes(name)) {
+                    existingAllowed.push(name);
+                    addedAllowed++;
+                } else {
+                    duplicateAllowed++;
+                }
+            });
+
             // 저장
             await chrome.storage.local.set({
                 blockedStreamers: existingStreamers,
-                blockedTags: existingTags
+                blockedTags: existingTags,
+                allowedStreamers: existingAllowed,
             });
 
             // 콘텐츠 스크립트에 알림
             notifyContentScript('blockedStreamers', existingStreamers);
             notifyContentScript('blockedTags', existingTags);
+            notifyContentScript('allowedStreamers', existingAllowed);
 
             // UI 업데이트
             await loadAllData();
@@ -532,7 +746,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (addedStreamers > 0) resultMessage += `새로운 스트리머: ${addedStreamers}명\n`;
             if (duplicateStreamers > 0) resultMessage += `중복된 스트리머: ${duplicateStreamers}명\n`;
             if (addedTags > 0) resultMessage += `새로운 태그: ${addedTags}개\n`;
-            if (duplicateTags > 0) resultMessage += `중복된 태그: ${duplicateTags}개`;
+            if (duplicateTags > 0) resultMessage += `중복된 태그: ${duplicateTags}개\n`;
+            if (addedAllowed > 0) resultMessage += `새로운 예외 스트리머: ${addedAllowed}명\n`;
+            if (duplicateAllowed > 0) resultMessage += `중복된 예외 스트리머: ${duplicateAllowed}명`;
 
             showImportResult(resultMessage, 'success');
             
@@ -603,6 +819,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 'storageMigrated',
                 'blockedStreamers',
                 'blockedTags',
+                'allowedStreamers',
                 'masterBlockEnabled',
                 'streamerBlockEnabled',
                 'tagBlockEnabled',
@@ -625,6 +842,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             const syncData = await chrome.storage.sync.get([
                 'blockedStreamers',
                 'blockedTags',
+                'allowedStreamers',
                 'masterBlockEnabled',
                 'streamerBlockEnabled',
                 'tagBlockEnabled',
@@ -633,6 +851,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             const payload = {
                 blockedStreamers: syncData.blockedStreamers || [],
                 blockedTags: syncData.blockedTags || [],
+                allowedStreamers: syncData.allowedStreamers || [],
                 masterBlockEnabled: syncData.masterBlockEnabled,
                 streamerBlockEnabled: syncData.streamerBlockEnabled,
                 tagBlockEnabled: syncData.tagBlockEnabled,

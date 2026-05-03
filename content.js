@@ -1,6 +1,7 @@
 // 차단된 스트리머 목록과 태그 목록
 let blockedStreamers = [];
 let blockedTags = [];
+let allowedStreamers = [];
 
 // 차단 기능 활성화 상태
 let masterEnabled = true;
@@ -15,6 +16,7 @@ let tagEnabled = true;
     const result = await chrome.storage.local.get([
       "blockedStreamers",
       "blockedTags",
+      "allowedStreamers",
       "masterBlockEnabled",
       "streamerBlockEnabled",
       "tagBlockEnabled",
@@ -22,6 +24,7 @@ let tagEnabled = true;
 
     blockedStreamers = result.blockedStreamers || [];
     blockedTags = result.blockedTags || [];
+    allowedStreamers = result.allowedStreamers || [];
 
     // 토글 상태 로드 (기본값: true)
     masterEnabled = result.masterBlockEnabled !== false;
@@ -44,6 +47,7 @@ async function ensureStorageMigration() {
       "storageMigrated",
       "blockedStreamers",
       "blockedTags",
+      "allowedStreamers",
       "masterBlockEnabled",
       "streamerBlockEnabled",
       "tagBlockEnabled",
@@ -66,6 +70,7 @@ async function ensureStorageMigration() {
     const syncData = await chrome.storage.sync.get([
       "blockedStreamers",
       "blockedTags",
+      "allowedStreamers",
       "masterBlockEnabled",
       "streamerBlockEnabled",
       "tagBlockEnabled",
@@ -74,6 +79,7 @@ async function ensureStorageMigration() {
     const payload = {
       blockedStreamers: syncData.blockedStreamers || [],
       blockedTags: syncData.blockedTags || [],
+      allowedStreamers: syncData.allowedStreamers || [],
       masterBlockEnabled: syncData.masterBlockEnabled,
       streamerBlockEnabled: syncData.streamerBlockEnabled,
       tagBlockEnabled: syncData.tagBlockEnabled,
@@ -105,6 +111,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     if (message.blockedTags) {
       blockedTags = message.blockedTags;
     }
+    if (message.allowedStreamers) {
+      allowedStreamers = message.allowedStreamers;
+    }
     hideBlockedContent();
   } else if (message.action === "updateBlockSettings") {
     // 토글 설정 업데이트
@@ -114,6 +123,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     tagEnabled = settings.tagEnabled;
     blockedStreamers = settings.blockedStreamers;
     blockedTags = settings.blockedTags;
+    allowedStreamers = settings.allowedStreamers || [];
 
     // 모든 카드의 처리 상태 리셋
     const allCards = document.querySelectorAll('li[data-type="cBox"]');
@@ -185,13 +195,23 @@ function hideBlockedContent() {
 
     // 태그로 차단 확인 (태그 차단이 활성화된 경우만)
     if (!shouldHide && tagEnabled && blockedTags.length > 0) {
-      const tagElements = card.querySelectorAll(".tag_wrap a");
-      for (let tagEl of tagElements) {
-        const tagText = tagEl.textContent.trim();
-        if (tagText && blockedTags.includes(tagText)) {
-          shouldHide = true;
-          reason = `태그 "${tagText}" 차단`;
-          break;
+      // 허용 스트리머이면 태그 차단 예외 처리
+      let streamerNameForTag = "";
+      const nickEls = card.querySelectorAll(".nick span, .nick");
+      for (let nickEl of nickEls) {
+        const text = nickEl.textContent.trim();
+        if (text) { streamerNameForTag = text; break; }
+      }
+
+      if (!allowedStreamers.includes(streamerNameForTag)) {
+        const tagElements = card.querySelectorAll(".tag_wrap a");
+        for (let tagEl of tagElements) {
+          const tagText = tagEl.textContent.trim();
+          if (tagText && blockedTags.includes(tagText)) {
+            shouldHide = true;
+            reason = `태그 "${tagText}" 차단`;
+            break;
+          }
         }
       }
     }
@@ -390,9 +410,21 @@ async function handleContextMenuAction() {
 }
 
 // 스트리머 카드에 우클릭 이벤트 추가
+let documentContextMenuListenerAdded = false;
+
 function setupContextMenu() {
+  // document 레벨에서 카드 바깥 우클릭 시 lastRightClickedCard 초기화 (1회만 등록)
+  if (!documentContextMenuListenerAdded) {
+    document.addEventListener('contextmenu', (e) => {
+      if (!e.target.closest('li[data-type="cBox"]')) {
+        lastRightClickedCard = null;
+      }
+    });
+    documentContextMenuListenerAdded = true;
+  }
+
   const streamerCards = document.querySelectorAll('li[data-type="cBox"]');
-  
+
   streamerCards.forEach((card) => {
     // 이미 이벤트가 추가된 카드는 스킵
     if (card.dataset.contextMenuAdded === "true") return;

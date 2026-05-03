@@ -158,6 +158,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         "tagBlockEnabled",
         "blockedStreamers",
         "blockedTags",
+        "allowedStreamers",
       ]);
 
       tabs.forEach((tab) => {
@@ -166,12 +167,13 @@ document.addEventListener("DOMContentLoaded", async function () {
             action: "updateBlockSettings",
             settings: {
               masterEnabled: settings.masterBlockEnabled !== false,
-            streamerEnabled: settings.streamerBlockEnabled !== false,
-            tagEnabled: settings.tagBlockEnabled !== false,
-            blockedStreamers: settings.blockedStreamers || [],
-            blockedTags: settings.blockedTags || [],
-          },
-        })
+              streamerEnabled: settings.streamerBlockEnabled !== false,
+              tagEnabled: settings.tagBlockEnabled !== false,
+              blockedStreamers: settings.blockedStreamers || [],
+              blockedTags: settings.blockedTags || [],
+              allowedStreamers: settings.allowedStreamers || [],
+            },
+          })
           .catch(() => {
             // 탭이 응답하지 않는 경우 무시
           });

@@ -331,6 +331,10 @@
                         <div class="stat-number" id="tagStatCount">0</div>
                         <div class="stat-label">차단된 태그</div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="allowedStatCount">0</div>
+                        <div class="stat-label">태그 차단 예외 스트리머</div>
+                    </div>
                 </div>
                 
                 <div class="import-export-section">
@@ -370,6 +374,27 @@
                     <input type="text" id="streamerSearch" class="search-field" placeholder="🔍 차단된 스트리머 검색...">
                 </div>
                 <div class="list-container" id="streamerList"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">✅ 태그 차단 예외 스트리머</div>
+                <div class="section-subtitle">태그 차단이 설정되어 있어도 이 스트리머의 방송은 항상 표시됩니다 (직접 스트리머 차단은 그대로 적용)</div>
+            </div>
+            <div class="section-content">
+                <div class="input-group">
+                    <div class="help-text">여러 스트리머를 추가하려면 쉼표(,)로 구분해주세요</div>
+                    <div class="input-row">
+                        <input type="text" id="allowedStreamerInput" class="input-field" placeholder="예외 스트리머 이름 입력">
+                        <button id="addAllowedStreamerBtn" class="add-btn">추가</button>
+                        <button id="clearAllAllowedStreamers" class="clear-all-btn">전체 삭제</button>
+                    </div>
+                </div>
+                <div class="search-group">
+                    <input type="text" id="allowedStreamerSearch" class="search-field" placeholder="🔍 예외 스트리머 검색...">
+                </div>
+                <div class="list-container" id="allowedStreamerList"></div>
             </div>
         </div>
 
