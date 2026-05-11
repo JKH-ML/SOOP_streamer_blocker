@@ -18,8 +18,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     const allowedStreamerList = document.getElementById('allowedStreamerList');
     const allowedStreamerSearch = document.getElementById('allowedStreamerSearch');
 
+    const titleInput = document.getElementById('titleInput');
+    const addTitleBtn = document.getElementById('addTitleBtn');
+    const clearAllTitles = document.getElementById('clearAllTitles');
+    const titleList = document.getElementById('titleList');
+    const titleSearch = document.getElementById('titleSearch');
+
     const streamerStatCount = document.getElementById('streamerStatCount');
     const tagStatCount = document.getElementById('tagStatCount');
+    const titleStatCount = document.getElementById('titleStatCount');
     const allowedStatCount = document.getElementById('allowedStatCount');
     
     const exportBtn = document.getElementById('exportBtn');
@@ -29,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 전체 데이터 저장
     let allStreamers = [];
     let allTags = [];
+    let allTitles = [];
     let allAllowedStreamers = [];
 
     // 초기 로드 (sync → local 마이그레이션 포함)
@@ -41,6 +49,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (e.key === 'Enter') addStreamers();
     });
     clearAllStreamers.addEventListener('click', clearAllStreamersList);
+
+    addTitleBtn.addEventListener('click', addTitles);
+    titleInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') addTitles();
+    });
+    clearAllTitles.addEventListener('click', clearAllTitlesList);
 
     addTagBtn.addEventListener('click', addTags);
     tagInput.addEventListener('keypress', function(e) {
@@ -63,6 +77,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         searchTags(this.value);
     });
 
+    titleSearch.addEventListener('input', function() {
+        searchTitles(this.value);
+    });
+
     allowedStreamerSearch.addEventListener('input', function() {
         searchAllowedStreamers(this.value);
     });
@@ -76,19 +94,22 @@ document.addEventListener('DOMContentLoaded', async function() {
         await loadStats();
         await loadStreamerList();
         await loadTagList();
+        await loadTitleList();
         await loadAllowedStreamerList();
     }
 
     // 통계 로드
     async function loadStats() {
         try {
-            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'allowedStreamers']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'blockedTitles', 'allowedStreamers']);
             const streamers = result.blockedStreamers || [];
             const tags = result.blockedTags || [];
+            const titles = result.blockedTitles || [];
             const allowed = result.allowedStreamers || [];
 
             streamerStatCount.textContent = streamers.length;
             tagStatCount.textContent = tags.length;
+            titleStatCount.textContent = titles.length;
             allowedStatCount.textContent = allowed.length;
         } catch (error) {
             console.error('통계 로드 중 오류:', error);
@@ -261,6 +282,165 @@ document.addEventListener('DOMContentLoaded', async function() {
         } catch (error) {
             console.error('태그 전체 삭제 중 오류:', error);
         }
+    }
+
+    // 제목 키워드 추가
+    async function addTitles() {
+        const input = titleInput.value.trim();
+        if (!input) {
+            alert('차단할 제목 키워드를 입력해주세요.');
+            return;
+        }
+
+        try {
+            const result = await chrome.storage.local.get('blockedTitles');
+            const blockedTitles = result.blockedTitles || [];
+
+            const keywords = input.split(',')
+                .map(k => k.trim())
+                .filter(k => k.length > 0);
+
+            if (keywords.length === 0) {
+                alert('유효한 키워드를 입력해주세요.');
+                return;
+            }
+
+            const newKeywords = [];
+            const duplicates = [];
+
+            keywords.forEach(k => {
+                if (blockedTitles.includes(k)) {
+                    duplicates.push(k);
+                } else {
+                    newKeywords.push(k);
+                    blockedTitles.push(k);
+                }
+            });
+
+            if (newKeywords.length > 0) {
+                await chrome.storage.local.set({ blockedTitles });
+                notifyContentScript('blockedTitles', blockedTitles);
+            }
+
+            titleInput.value = '';
+            await loadAllData();
+
+            showResultMessage(newKeywords, duplicates, '키워드');
+        } catch (error) {
+            console.error('제목 키워드 추가 중 오류:', error);
+            alert('제목 키워드 추가 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 제목 키워드 제거
+    async function removeTitle(keyword) {
+        try {
+            const result = await chrome.storage.local.get('blockedTitles');
+            const blockedTitles = result.blockedTitles || [];
+
+            const index = blockedTitles.indexOf(keyword);
+            if (index > -1) {
+                blockedTitles.splice(index, 1);
+                await chrome.storage.local.set({ blockedTitles });
+                notifyContentScript('blockedTitles', blockedTitles);
+                await loadAllData();
+                if (titleSearch.value) {
+                    searchTitles(titleSearch.value);
+                }
+            }
+        } catch (error) {
+            console.error('제목 키워드 제거 중 오류:', error);
+        }
+    }
+
+    // 모든 제목 키워드 삭제
+    async function clearAllTitlesList() {
+        if (!confirm('모든 차단된 제목 키워드를 삭제하시겠습니까?')) return;
+
+        try {
+            await chrome.storage.local.set({ blockedTitles: [] });
+            notifyContentScript('blockedTitles', []);
+            titleSearch.value = '';
+            await loadAllData();
+        } catch (error) {
+            console.error('제목 키워드 전체 삭제 중 오류:', error);
+        }
+    }
+
+    // 제목 키워드 목록 로드
+    async function loadTitleList() {
+        try {
+            const result = await chrome.storage.local.get('blockedTitles');
+            const blockedTitles = result.blockedTitles || [];
+            allTitles = blockedTitles;
+
+            if (blockedTitles.length === 0) {
+                titleList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📝</div>
+                        <div>차단된 제목 키워드가 없습니다</div>
+                    </div>
+                `;
+                return;
+            }
+
+            renderTitleList(blockedTitles);
+        } catch (error) {
+            console.error('제목 키워드 목록 로드 중 오류:', error);
+        }
+    }
+
+    // 제목 키워드 목록 렌더링
+    function renderTitleList(keywords, searchTerm = '') {
+        if (keywords.length === 0 && searchTerm) {
+            titleList.innerHTML = `
+                <div class="search-result-info">
+                    검색 결과가 없습니다: "${escapeHtml(searchTerm)}"
+                </div>
+            `;
+            return;
+        }
+
+        titleList.innerHTML = '';
+        keywords.forEach(keyword => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+
+            let displayName = escapeHtml(keyword);
+            if (searchTerm) {
+                const regex = new RegExp(`(${escapeHtml(searchTerm)})`, 'gi');
+                displayName = displayName.replace(regex, '<span class="highlight">$1</span>');
+            }
+
+            item.innerHTML = `
+                <span class="item-name">${displayName}</span>
+                <button class="remove-btn" data-keyword="${escapeHtml(keyword)}">삭제</button>
+            `;
+
+            item.querySelector('.remove-btn').addEventListener('click', () => removeTitle(keyword));
+            titleList.appendChild(item);
+        });
+
+        if (searchTerm && keywords.length > 0) {
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'search-result-info';
+            infoDiv.textContent = `검색 결과: ${keywords.length}개 / 전체: ${allTitles.length}개`;
+            titleList.insertBefore(infoDiv, titleList.firstChild);
+        }
+    }
+
+    // 제목 키워드 검색
+    function searchTitles(searchTerm) {
+        if (!searchTerm.trim()) {
+            renderTitleList(allTitles);
+            return;
+        }
+
+        const filtered = allTitles.filter(k =>
+            k.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        renderTitleList(filtered, searchTerm);
     }
 
     // 허용 스트리머 추가
@@ -585,9 +765,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 차단 목록 내보내기
     async function exportBlockList() {
         try {
-            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'allowedStreamers']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'blockedTitles', 'allowedStreamers']);
             const blockedStreamers = result.blockedStreamers || [];
             const blockedTags = result.blockedTags || [];
+            const blockedTitles = result.blockedTitles || [];
             const allowedStreamers = result.allowedStreamers || [];
 
             let content = '=== 숲 스트리머 숨기기 차단 목록 ===\n';
@@ -611,6 +792,15 @@ document.addEventListener('DOMContentLoaded', async function() {
                 content += '(없음)\n';
             }
 
+            content += '\n[차단된 제목 키워드]\n';
+            if (blockedTitles.length > 0) {
+                blockedTitles.forEach(keyword => {
+                    content += keyword + '\n';
+                });
+            } else {
+                content += '(없음)\n';
+            }
+
             content += '\n[태그 차단 예외 스트리머]\n';
             if (allowedStreamers.length > 0) {
                 allowedStreamers.forEach(name => {
@@ -620,7 +810,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 content += '(없음)\n';
             }
 
-            content += '\n=== 총 ' + (blockedStreamers.length + blockedTags.length + allowedStreamers.length) + '개 항목 ===';
+            content += '\n=== 총 ' + (blockedStreamers.length + blockedTags.length + blockedTitles.length + allowedStreamers.length) + '개 항목 ===';
 
             // 파일 다운로드
             const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -651,9 +841,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             let isStreamerSection = false;
             let isTagSection = false;
+            let isTitleSection = false;
             let isAllowedSection = false;
             const newStreamers = [];
             const newTags = [];
+            const newTitles = [];
             const newAllowed = [];
 
             lines.forEach(line => {
@@ -662,14 +854,22 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (line === '[차단된 스트리머]') {
                     isStreamerSection = true;
                     isTagSection = false;
+                    isTitleSection = false;
                     isAllowedSection = false;
                 } else if (line === '[차단된 태그]') {
                     isStreamerSection = false;
                     isTagSection = true;
+                    isTitleSection = false;
+                    isAllowedSection = false;
+                } else if (line === '[차단된 제목 키워드]') {
+                    isStreamerSection = false;
+                    isTagSection = false;
+                    isTitleSection = true;
                     isAllowedSection = false;
                 } else if (line === '[태그 차단 예외 스트리머]') {
                     isStreamerSection = false;
                     isTagSection = false;
+                    isTitleSection = false;
                     isAllowedSection = true;
                 } else if (line.startsWith('===') || line.startsWith('생성 일시:') || line === '(없음)' || !line) {
                     // 헤더나 빈 줄 무시
@@ -678,21 +878,26 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else if (isTagSection) {
                     const tag = line.startsWith('#') ? line.substring(1) : line;
                     newTags.push(tag);
+                } else if (isTitleSection) {
+                    newTitles.push(line);
                 } else if (isAllowedSection) {
                     newAllowed.push(line);
                 }
             });
 
             // 기존 목록과 병합
-            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'allowedStreamers']);
+            const result = await chrome.storage.local.get(['blockedStreamers', 'blockedTags', 'blockedTitles', 'allowedStreamers']);
             const existingStreamers = result.blockedStreamers || [];
             const existingTags = result.blockedTags || [];
+            const existingTitles = result.blockedTitles || [];
             const existingAllowed = result.allowedStreamers || [];
 
             let addedStreamers = 0;
             let duplicateStreamers = 0;
             let addedTags = 0;
             let duplicateTags = 0;
+            let addedTitles = 0;
+            let duplicateTitles = 0;
             let addedAllowed = 0;
             let duplicateAllowed = 0;
 
@@ -716,6 +921,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             });
 
+            // 제목 키워드 병합
+            newTitles.forEach(keyword => {
+                if (!existingTitles.includes(keyword)) {
+                    existingTitles.push(keyword);
+                    addedTitles++;
+                } else {
+                    duplicateTitles++;
+                }
+            });
+
             // 허용 스트리머 병합
             newAllowed.forEach(name => {
                 if (!existingAllowed.includes(name)) {
@@ -730,12 +945,14 @@ document.addEventListener('DOMContentLoaded', async function() {
             await chrome.storage.local.set({
                 blockedStreamers: existingStreamers,
                 blockedTags: existingTags,
+                blockedTitles: existingTitles,
                 allowedStreamers: existingAllowed,
             });
 
             // 콘텐츠 스크립트에 알림
             notifyContentScript('blockedStreamers', existingStreamers);
             notifyContentScript('blockedTags', existingTags);
+            notifyContentScript('blockedTitles', existingTitles);
             notifyContentScript('allowedStreamers', existingAllowed);
 
             // UI 업데이트
@@ -747,6 +964,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (duplicateStreamers > 0) resultMessage += `중복된 스트리머: ${duplicateStreamers}명\n`;
             if (addedTags > 0) resultMessage += `새로운 태그: ${addedTags}개\n`;
             if (duplicateTags > 0) resultMessage += `중복된 태그: ${duplicateTags}개\n`;
+            if (addedTitles > 0) resultMessage += `새로운 제목 키워드: ${addedTitles}개\n`;
+            if (duplicateTitles > 0) resultMessage += `중복된 제목 키워드: ${duplicateTitles}개\n`;
             if (addedAllowed > 0) resultMessage += `새로운 예외 스트리머: ${addedAllowed}명\n`;
             if (duplicateAllowed > 0) resultMessage += `중복된 예외 스트리머: ${duplicateAllowed}명`;
 
@@ -819,10 +1038,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                 'storageMigrated',
                 'blockedStreamers',
                 'blockedTags',
+                'blockedTitles',
                 'allowedStreamers',
                 'masterBlockEnabled',
                 'streamerBlockEnabled',
                 'tagBlockEnabled',
+                'titleBlockEnabled',
             ]);
 
             if (localData.storageMigrated) return;
@@ -830,9 +1051,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             const hasLocalData =
                 (localData.blockedStreamers && localData.blockedStreamers.length > 0) ||
                 (localData.blockedTags && localData.blockedTags.length > 0) ||
+                (localData.blockedTitles && localData.blockedTitles.length > 0) ||
                 typeof localData.masterBlockEnabled !== 'undefined' ||
                 typeof localData.streamerBlockEnabled !== 'undefined' ||
-                typeof localData.tagBlockEnabled !== 'undefined';
+                typeof localData.tagBlockEnabled !== 'undefined' ||
+                typeof localData.titleBlockEnabled !== 'undefined';
 
             if (hasLocalData) {
                 await chrome.storage.local.set({ storageMigrated: true });
@@ -842,27 +1065,33 @@ document.addEventListener('DOMContentLoaded', async function() {
             const syncData = await chrome.storage.sync.get([
                 'blockedStreamers',
                 'blockedTags',
+                'blockedTitles',
                 'allowedStreamers',
                 'masterBlockEnabled',
                 'streamerBlockEnabled',
                 'tagBlockEnabled',
+                'titleBlockEnabled',
             ]);
 
             const payload = {
                 blockedStreamers: syncData.blockedStreamers || [],
                 blockedTags: syncData.blockedTags || [],
+                blockedTitles: syncData.blockedTitles || [],
                 allowedStreamers: syncData.allowedStreamers || [],
                 masterBlockEnabled: syncData.masterBlockEnabled,
                 streamerBlockEnabled: syncData.streamerBlockEnabled,
                 tagBlockEnabled: syncData.tagBlockEnabled,
+                titleBlockEnabled: syncData.titleBlockEnabled,
             };
 
             const hasSyncData =
                 payload.blockedStreamers.length > 0 ||
                 payload.blockedTags.length > 0 ||
+                payload.blockedTitles.length > 0 ||
                 typeof payload.masterBlockEnabled !== 'undefined' ||
                 typeof payload.streamerBlockEnabled !== 'undefined' ||
-                typeof payload.tagBlockEnabled !== 'undefined';
+                typeof payload.tagBlockEnabled !== 'undefined' ||
+                typeof payload.titleBlockEnabled !== 'undefined';
 
             if (hasSyncData) {
                 await chrome.storage.local.set({ ...payload, storageMigrated: true });

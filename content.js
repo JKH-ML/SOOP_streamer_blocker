@@ -1,12 +1,14 @@
 // 차단된 스트리머 목록과 태그 목록
 let blockedStreamers = [];
 let blockedTags = [];
+let blockedTitles = [];
 let allowedStreamers = [];
 
 // 차단 기능 활성화 상태
 let masterEnabled = true;
 let streamerEnabled = true;
 let tagEnabled = true;
+let titleEnabled = true;
 
 // 초기화
 (async function init() {
@@ -16,20 +18,24 @@ let tagEnabled = true;
     const result = await chrome.storage.local.get([
       "blockedStreamers",
       "blockedTags",
+      "blockedTitles",
       "allowedStreamers",
       "masterBlockEnabled",
       "streamerBlockEnabled",
       "tagBlockEnabled",
+      "titleBlockEnabled",
     ]);
 
     blockedStreamers = result.blockedStreamers || [];
     blockedTags = result.blockedTags || [];
+    blockedTitles = result.blockedTitles || [];
     allowedStreamers = result.allowedStreamers || [];
 
     // 토글 상태 로드 (기본값: true)
     masterEnabled = result.masterBlockEnabled !== false;
     streamerEnabled = result.streamerBlockEnabled !== false;
     tagEnabled = result.tagBlockEnabled !== false;
+    titleEnabled = result.titleBlockEnabled !== false;
 
     hideBlockedContent();
 
@@ -47,10 +53,12 @@ async function ensureStorageMigration() {
       "storageMigrated",
       "blockedStreamers",
       "blockedTags",
+      "blockedTitles",
       "allowedStreamers",
       "masterBlockEnabled",
       "streamerBlockEnabled",
       "tagBlockEnabled",
+      "titleBlockEnabled",
     ]);
 
     if (localData.storageMigrated) return;
@@ -58,9 +66,11 @@ async function ensureStorageMigration() {
     const hasLocalData =
       (localData.blockedStreamers && localData.blockedStreamers.length > 0) ||
       (localData.blockedTags && localData.blockedTags.length > 0) ||
+      (localData.blockedTitles && localData.blockedTitles.length > 0) ||
       typeof localData.masterBlockEnabled !== "undefined" ||
       typeof localData.streamerBlockEnabled !== "undefined" ||
-      typeof localData.tagBlockEnabled !== "undefined";
+      typeof localData.tagBlockEnabled !== "undefined" ||
+      typeof localData.titleBlockEnabled !== "undefined";
 
     if (hasLocalData) {
       await chrome.storage.local.set({ storageMigrated: true });
@@ -70,27 +80,33 @@ async function ensureStorageMigration() {
     const syncData = await chrome.storage.sync.get([
       "blockedStreamers",
       "blockedTags",
+      "blockedTitles",
       "allowedStreamers",
       "masterBlockEnabled",
       "streamerBlockEnabled",
       "tagBlockEnabled",
+      "titleBlockEnabled",
     ]);
 
     const payload = {
       blockedStreamers: syncData.blockedStreamers || [],
       blockedTags: syncData.blockedTags || [],
+      blockedTitles: syncData.blockedTitles || [],
       allowedStreamers: syncData.allowedStreamers || [],
       masterBlockEnabled: syncData.masterBlockEnabled,
       streamerBlockEnabled: syncData.streamerBlockEnabled,
       tagBlockEnabled: syncData.tagBlockEnabled,
+      titleBlockEnabled: syncData.titleBlockEnabled,
     };
 
     const hasSyncData =
       payload.blockedStreamers.length > 0 ||
       payload.blockedTags.length > 0 ||
+      payload.blockedTitles.length > 0 ||
       typeof payload.masterBlockEnabled !== "undefined" ||
       typeof payload.streamerBlockEnabled !== "undefined" ||
-      typeof payload.tagBlockEnabled !== "undefined";
+      typeof payload.tagBlockEnabled !== "undefined" ||
+      typeof payload.titleBlockEnabled !== "undefined";
 
     if (hasSyncData) {
       await chrome.storage.local.set({ ...payload, storageMigrated: true });
@@ -111,6 +127,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     if (message.blockedTags) {
       blockedTags = message.blockedTags;
     }
+    if (message.blockedTitles) {
+      blockedTitles = message.blockedTitles;
+    }
     if (message.allowedStreamers) {
       allowedStreamers = message.allowedStreamers;
     }
@@ -121,8 +140,10 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     masterEnabled = settings.masterEnabled;
     streamerEnabled = settings.streamerEnabled;
     tagEnabled = settings.tagEnabled;
+    titleEnabled = settings.titleEnabled;
     blockedStreamers = settings.blockedStreamers;
     blockedTags = settings.blockedTags;
+    blockedTitles = settings.blockedTitles || [];
     allowedStreamers = settings.allowedStreamers || [];
 
     // 모든 카드의 처리 상태 리셋
@@ -154,15 +175,15 @@ function hideBlockedContent() {
     return;
   }
 
-  // 둘 다 비활성화면 리턴
-  if (!streamerEnabled && !tagEnabled) {
+  // 모두 비활성화면 리턴
+  if (!streamerEnabled && !tagEnabled && !titleEnabled) {
     console.log(
       "숲 스트리머 숨기기: 모든 개별 차단 기능이 비활성화되어 있습니다."
     );
     return;
   }
 
-  if (blockedStreamers.length === 0 && blockedTags.length === 0) return;
+  if (blockedStreamers.length === 0 && blockedTags.length === 0 && blockedTitles.length === 0) return;
 
   // 스트리머 카드 찾기 (li 요소 중 data-type="cBox"인 것들)
   const streamerCards = document.querySelectorAll('li[data-type="cBox"]');
@@ -190,6 +211,21 @@ function hideBlockedContent() {
       if (streamerName && blockedStreamers.includes(streamerName)) {
         shouldHide = true;
         reason = `스트리머 "${streamerName}" 차단`;
+      }
+    }
+
+    // 방송 제목으로 차단 확인 (제목 차단이 활성화된 경우만)
+    if (!shouldHide && titleEnabled && blockedTitles.length > 0) {
+      const titleEl = card.querySelector("h3.title a");
+      if (titleEl) {
+        const titleText = titleEl.textContent.trim();
+        for (const keyword of blockedTitles) {
+          if (titleText.includes(keyword)) {
+            shouldHide = true;
+            reason = `제목 키워드 "${keyword}" 차단`;
+            break;
+          }
+        }
       }
     }
 

@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   const masterToggle = document.getElementById("masterToggle");
   const streamerToggle = document.getElementById("streamerToggle");
   const tagToggle = document.getElementById("tagToggle");
+  const titleToggle = document.getElementById("titleToggle");
 
   // 초기 로드 (sync → local 마이그레이션 포함)
   await ensureStorageMigration();
@@ -28,14 +29,17 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (!isEnabled) {
       streamerToggle.checked = false;
       tagToggle.checked = false;
+      titleToggle.checked = false;
     } else {
       // 마스터 토글이 켜지면 이전 상태 복원
       const result = await chrome.storage.local.get([
         "streamerBlockEnabled",
         "tagBlockEnabled",
+        "titleBlockEnabled",
       ]);
       streamerToggle.checked = result.streamerBlockEnabled !== false;
       tagToggle.checked = result.tagBlockEnabled !== false;
+      titleToggle.checked = result.titleBlockEnabled !== false;
     }
 
     // 상태 저장
@@ -43,11 +47,13 @@ document.addEventListener("DOMContentLoaded", async function () {
       masterBlockEnabled: isEnabled,
       streamerBlockEnabled: streamerToggle.checked,
       tagBlockEnabled: tagToggle.checked,
+      titleBlockEnabled: titleToggle.checked,
     });
 
     // 개별 토글 활성화/비활성화
     streamerToggle.disabled = !isEnabled;
     tagToggle.disabled = !isEnabled;
+    titleToggle.disabled = !isEnabled;
 
     // 콘텐츠 스크립트에 알림
     notifyContentScript();
@@ -69,6 +75,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     notifyContentScript();
   });
 
+  // 제목 토글 이벤트
+  titleToggle.addEventListener("change", async function () {
+    await chrome.storage.local.set({
+      titleBlockEnabled: this.checked,
+    });
+    notifyContentScript();
+  });
+
   // 토글 상태 로드
   async function loadToggleStates() {
     try {
@@ -76,20 +90,24 @@ document.addEventListener("DOMContentLoaded", async function () {
         "masterBlockEnabled",
         "streamerBlockEnabled",
         "tagBlockEnabled",
+        "titleBlockEnabled",
       ]);
 
       // 기본값: 모두 true (활성화)
       const masterEnabled = result.masterBlockEnabled !== false;
       const streamerEnabled = result.streamerBlockEnabled !== false;
       const tagEnabled = result.tagBlockEnabled !== false;
+      const titleEnabled = result.titleBlockEnabled !== false;
 
       masterToggle.checked = masterEnabled;
       streamerToggle.checked = streamerEnabled && masterEnabled;
       tagToggle.checked = tagEnabled && masterEnabled;
+      titleToggle.checked = titleEnabled && masterEnabled;
 
       // 마스터 토글이 꺼져있으면 개별 토글 비활성화
       streamerToggle.disabled = !masterEnabled;
       tagToggle.disabled = !masterEnabled;
+      titleToggle.disabled = !masterEnabled;
     } catch (error) {
       console.error("토글 상태 로드 중 오류:", error);
     }
@@ -101,12 +119,16 @@ document.addEventListener("DOMContentLoaded", async function () {
       const result = await chrome.storage.local.get([
         "blockedStreamers",
         "blockedTags",
+        "blockedTitles",
       ]);
       const streamers = result.blockedStreamers || [];
       const tags = result.blockedTags || [];
+      const titles = result.blockedTitles || [];
 
       streamerCountEl.textContent = streamers.length;
       tagCountEl.textContent = tags.length;
+      const titleCountEl = document.getElementById("titleCount");
+      if (titleCountEl) titleCountEl.textContent = titles.length;
     } catch (error) {
       console.error("통계 로드 중 오류:", error);
     }
@@ -156,8 +178,10 @@ document.addEventListener("DOMContentLoaded", async function () {
         "masterBlockEnabled",
         "streamerBlockEnabled",
         "tagBlockEnabled",
+        "titleBlockEnabled",
         "blockedStreamers",
         "blockedTags",
+        "blockedTitles",
         "allowedStreamers",
       ]);
 
@@ -169,8 +193,10 @@ document.addEventListener("DOMContentLoaded", async function () {
               masterEnabled: settings.masterBlockEnabled !== false,
               streamerEnabled: settings.streamerBlockEnabled !== false,
               tagEnabled: settings.tagBlockEnabled !== false,
+              titleEnabled: settings.titleBlockEnabled !== false,
               blockedStreamers: settings.blockedStreamers || [],
               blockedTags: settings.blockedTags || [],
+              blockedTitles: settings.blockedTitles || [],
               allowedStreamers: settings.allowedStreamers || [],
             },
           })

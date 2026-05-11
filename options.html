@@ -332,6 +332,10 @@
                         <div class="stat-label">차단된 태그</div>
                     </div>
                     <div class="stat-card">
+                        <div class="stat-number" id="titleStatCount">0</div>
+                        <div class="stat-label">차단된 제목 키워드</div>
+                    </div>
+                    <div class="stat-card">
                         <div class="stat-number" id="allowedStatCount">0</div>
                         <div class="stat-label">태그 차단 예외 스트리머</div>
                     </div>
@@ -416,6 +420,27 @@
                     <input type="text" id="tagSearch" class="search-field" placeholder="🔍 차단된 태그 검색...">
                 </div>
                 <div class="list-container" id="tagList"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">📝 제목 키워드 차단</div>
+                <div class="section-subtitle">방송 제목에 특정 키워드가 포함된 방송을 숨깁니다 (부분 일치)</div>
+            </div>
+            <div class="section-content">
+                <div class="input-group">
+                    <div class="help-text">여러 키워드를 추가하려면 쉼표(,)로 구분해주세요</div>
+                    <div class="input-row">
+                        <input type="text" id="titleInput" class="input-field" placeholder="차단할 제목 키워드 입력">
+                        <button id="addTitleBtn" class="add-btn">추가</button>
+                        <button id="clearAllTitles" class="clear-all-btn">전체 삭제</button>
+                    </div>
+                </div>
+                <div class="search-group">
+                    <input type="text" id="titleSearch" class="search-field" placeholder="🔍 차단된 키워드 검색...">
+                </div>
+                <div class="list-container" id="titleList"></div>
             </div>
         </div>
 
